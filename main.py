@@ -19,7 +19,7 @@ threading.Thread(target=run_flask).start()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel("gemini-flash-latest")
+model = genai.GenerativeModel("gemini-flash-latest") = genai.GenerativeModel("gemini-flash-latest")
 logging.basicConfig(level=logging.INFO)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
