@@ -1,10 +1,10 @@
-    from flask import Flask
+ from flask import Flask
 import threading
 import os
 import logging
 import time
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import google.generativeai as genai
 from PIL import Image
 import io
@@ -12,65 +12,57 @@ import io
 app = Flask(__name__)
 @app.route('/')
 def home():
-    return "SR WORLD VAO Bot LIVE!"
+    return "SR Vai Bot is Running!"
 
 def run_flask():
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
+    app.run(host='0.0.0.0', port=10000)
 
 threading.Thread(target=run_flask).start()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 genai.configure(api_key=GEMINI_API_KEY)
-# Use 2.0 flash - more quota, stable
+# Use 2.0 flash - no quota issue
 model = genai.GenerativeModel("gemini-2.0-flash")
 logging.basicConfig(level=logging.INFO)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🙏 Namaste! SR WORLD VAO Bot LIVE!\n\nPhoto kalsi - Kannada + English answer!")
+    await update.message.reply_text("Hi! Send me a photo 📸")
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("📸 Photo sigide, solving... 10 sec wait maadi")
+    await update.message.reply_text("Analyzing... ⏳")
     photo_file = await update.message.photo[-1].get_file()
     photo_bytes = await photo_file.download_as_bytearray()
     image = Image.open(io.BytesIO(photo_bytes))
-    prompt = "You are Karnataka VAO exam expert. Extract question from image, solve step by step in Kannada and English."
+    prompt = "You are a helpful assistant. Describe this image."
     for attempt in range(3):
         try:
-            response = model.generate_content([prompt, image])
-            await update.message.reply_text(response.text[:4096])
+            response = await model.generate_content_async([prompt, image])
+            await update.message.reply_text(response.text)
             return
         except Exception as e:
             err = str(e)
-            if "429" in err and attempt < 2:
-                await update.message.reply_text(f"⏳ Quota full, {20*(attempt+1)} sec wait... retrying")
-                time.sleep(20)
-                continue
-            else:
-                await update.message.reply_text(f"🙏 Swamy 1 min wait maadi, malli photo kalsi. Quota: {err[:200]}")
-                return
+            if "429" in err or "quota" in err.lower():
+                if attempt < 2:
+                    await update.message.reply_text(f"Busy, retrying in 20 sec... ({attempt+1}/3)")
+                    time.sleep(20)
+                    continue
+            await update.message.reply_text(f"Error: {err[:200]}")
+            return
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    for attempt in range(3):
-        try:
-            prompt = f"Karnataka VAO question: {update.message.text}. Answer Kannada + English"
-            response = model.generate_content(prompt)
-            await update.message.reply_text(response.text[:4096])
-            return
-        except Exception as e:
-            if "429" in str(e) and attempt < 2:
-                time.sleep(20)
-                continue
-            else:
-                await update.message.reply_text("⏳ 1 min wait maadi, malli Hi antha kalsi 🙏")
-                return
+    try:
+        response = await model.generate_content_async(update.message.text)
+        await update.message.reply_text(response.text)
+    except Exception as e:
+        await update.message.reply_text(f"Error: {str(e)[:200]}")
 
 def main():
-    app_bot = Application.builder().token(BOT_TOKEN).build()
-    app_bot.add_handler(CommandHandler("start", start))
-    app_bot.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-    app_bot.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
-    app_bot.run_polling()
+    application = ApplicationBuilder().token(BOT_TOKEN).build()
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+    application.run_polling()
 
 if __name__ == "__main__":
     main()
