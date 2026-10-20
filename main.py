@@ -14,8 +14,10 @@ app = Flask(__name__)
 @app.route('/')
 def home():
     return "SR Vai Bot is Running!"
+
 def run_flask():
     app.run(host='0.0.0.0', port=10000)
+
 threading.Thread(target=run_flask).start()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -44,7 +46,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         image = Image.open(io.BytesIO(photo_bytes))
         prompt = "You are an expert teacher. Read this question paper image carefully. Even if blurry, try your best. Explain each question answer in Kannada and English. If you can't read, say 'Photo clear illa, swalpa hattira inda photo tagiri'"
         response = await model.generate_content_async([prompt, image])
-        # Check if blocked
         if not response.candidates or not response.candidates[0].content.parts:
             await update.message.reply_text("Photo clear illa! Dayavittu hattira inda clear photo tagiri. / Please take a clearer photo closer to paper.")
             return
